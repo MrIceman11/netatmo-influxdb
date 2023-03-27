@@ -1,5 +1,7 @@
 import requests
 from influxdb import InfluxDBClient
+import schedule
+import time
 
 # Netatmo API credentials
 client_id = 'YOUR_CLIENT_ID' #Client ID for NetAtmo app
