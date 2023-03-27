@@ -3,8 +3,10 @@ import requests
 import json
 import schedule
 import time
+from influxdb import InfluxDBClient
 
 # Netatmo API credentials
+device_id = '' #Device ID of NetAtmo weather station
 client_id = '' #Client ID for NetAtmo app
 client_secret = '' #Client secret for NetAtmo app
 username = '' #Username of NetAtmo account
@@ -33,26 +35,51 @@ def refresh_token():
 
 def get_weather_data():
     global weather_data
-    response = requests.get('https://api.netatmo.com/api/getstationsdata?access_token=' + access_token)
-    weather_data = response.json()['body']
+    # Get station data
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+    params = {
+        'device_id': device_id,
+        'get_favorites': False
+    }
+    response = requests.get('https://api.netatmo.com/api/getstationsdata', headers=headers, params=params)
+    weather_data = response.json()['body']['devices'][0]
+
 
 def save_weather_data():
     # Create InfluxDB client
-    influxdb_client = InfluxDBClient(host='influxdb_host',
+    client = InfluxDBClient(host='influxdb_host',
                                     port='influxdb_port',
                                     username='influxdb_user',
                                     password='influxdb_password',
                                     database='influxdb_database')
 
-    # Write weather data to InfluxDB
-    for station_data in weather_data['devices']:
-        for module_data in station_data['modules']:
-            data_points = [{'measurement': 'temperature',
-                            'tags': {'station': station_data['_id'],
-                                    'module': module_data['_id']},
-                            'time': module_data['dashboard_data']['time_utc'],
-                            'fields': {'value': module_data['dashboard_data']['Temperature']}}]
-            influxdb_client.write_points(data_points)
+    # Convert data to InfluxDB format
+    measurement = 'netatmo'
+    tags = {
+        'station_name': weather_data['station_name'],
+        'module_name': weather_data['module_name'],
+        'module_type': weather_data['type']
+    }
+    fields = {}
+    for sensor_type in weather_data['dashboard_data']:
+        field_name = sensor_type.replace('-', '_')
+        fields[field_name] = weather_data['dashboard_data'][sensor_type]
+    for module in weather_data['modules']:
+        module_name = module['module_name']
+        for sensor_type in module['dashboard_data']:
+            field_name = f'{module_name}_{sensor_type}'.replace('-', '_')
+            fields[field_name] = module['dashboard_data'][sensor_type]
+    json_body = [
+        {
+            'measurement': measurement,
+            'tags': tags,
+            'fields': fields
+        }
+    ]
+    # Write data to InfluxDB
+    client.write_points(json_body)
 
 # Call refresh_token() once to get the initial access token
 refresh_token()
