@@ -1,6 +1,5 @@
-import json
+#import json
 import requests
-import json
 import schedule
 import time
 from influxdb import InfluxDBClient
@@ -30,7 +29,7 @@ def refresh_token():
             'username': username,
             'password': password,
             'scope': 'read_station'}
-    response = requests.post('https://api.netatmo.com/oauth2/token', data=payload)
+    response = requests.post('https://api.netatmo.com/oauth2/token', data=payload, timeout = 30)
     access_token = response.json()['access_token']
 
 def get_weather_data():
@@ -43,7 +42,7 @@ def get_weather_data():
         'device_id': device_id,
         'get_favorites': False
     }
-    response = requests.get('https://api.netatmo.com/api/getstationsdata', headers=headers, params=params)
+    response = requests.get('https://api.netatmo.com/api/getstationsdata', headers=headers, params=params, timeout = 30)
     weather_data = response.json()['body']['devices'][0]
 
 
